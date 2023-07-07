@@ -1,5 +1,5 @@
 #  Currency Converter
-This is a simple currency converter application implemented in PHP 8. It accepts a monetary value in a certain currency and outputs the converted values in various world currencies. The exchange rates and currencies are provided by a data source.
+This is a simple currency converter application implemented in PHP 8. It accepts a monetary value in a certain currency and outputs the converted values in various world currencies. This conversion is to be based on the exchange rates that are made available through a data source.
 
 ### Project Setup
 Clone the repository to your local machine.

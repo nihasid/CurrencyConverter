@@ -1,85 +1,54 @@
 <?php
+namespace App;
+
+use Exception;
+
 interface CurrencyConverterInterface
 {
-    public function convert(float $amount, array $currencies, string $outputFormat): string;
+    public function convert(float $amount, string $fromCurrency, array $toCurrencies, string $outputFormat): string;
 }
 
 class CurrencyConverter implements CurrencyConverterInterface
 {
-    private string $baseCurrency;
-    private array $exchangeRates;
+    private ExchangeRate $exchangeRate;
+    private ExchangeRateCalculator $exchangeRateCalculator;
+    private OutputFormatter $outputFormatter;
 
-    public function __construct(string $baseCurrency, array $exchangeRates)
+    public function __construct( ExchangeRate $exchangeRate, ExchangeRateCalculator $exchangeRateCalculator, OutputFormatter $outputFormatter)
     {
-        $this->baseCurrency = $baseCurrency;
-        $this->exchangeRates = $exchangeRates;
+    
+        $this->exchangeRateCalculator = $exchangeRateCalculator;
+        $this->exchangeRate = $exchangeRate;
+        $this->outputFormatter = $outputFormatter;
     }
 
-
-    public function convert(float $amount, array $currencies, string $outputFormat = 'json'): string
+    public function convert(float $amount, string $fromCurrency, array $toCurrencies, string $outputFormat): string
     {
+        $allExchangeRates = $this->exchangeRate->getExchangeRates();
+        $results = $this->calculateConversion($amount, $fromCurrency, $toCurrencies, $allExchangeRates);
+       
+        return $this->formatResults($results, $outputFormat);
 
+    }
+
+    private function calculateConversion(float $amount, string $fromCurrency, array $toCurrencies, array $exchangeRates): array
+    {
         $results = [];
-        
-        foreach ($currencies as $currency) {
-            
-            if (!isset($this->exchangeRates[$currency->getCode()])) {
-                throw new Exception("Currency not found: {$currency->getCode()}");
+        if(count($toCurrencies) > 0) {
+            foreach ($toCurrencies as $toCurrency) {
+                $convertedAmount = $this->exchangeRateCalculator->calculateConvertedAmount($amount, $fromCurrency, $toCurrency, $exchangeRates);
+                $results[] = [
+                    $toCurrency => $convertedAmount
+                ];
             }
-
-            if ($currency->getCode() === $this->baseCurrency) {
-                $convertedAmount = $amount;
-            } else {
-                $rate = $this->exchangeRates[$currency->getCode()];
-                $convertedAmount = $amount * $rate;
-            }
-    
-            $formattedAmount = $this->formatCurrency($convertedAmount, $currency->getCode());
-            // $results[$currency->getCode()] = $formattedAmount;
-            $results[] = [
-                'currency' => $currency->getCode(),
-                'amount' => $formattedAmount,
-            ];
         }
-
-        $dataSourcesArray = ['json', 'csv']; // Set to 'csv' for CSV format
-
-         if (in_array($outputFormat, $dataSourcesArray)) {
-        if ($outputFormat === 'json') {
-            return json_encode($results);
-        } elseif ($outputFormat === 'csv') {
-            $csv = [];
-            foreach ($results as $result) {
-                $csv[] = implode(',', $result);
-            }
-            return implode(PHP_EOL, $csv);
-        }
-    }
         
-
-        throw new Exception("Invalid output format specified.");
-    
-
+        return $results;
     }
 
-    public function getExchangeRate(array $currencies): array
+    public function formatResults(array $results, string $outputFormat): string
     {
-        
-        foreach ($currencies as $currency) {
-            
-            if (isset($this->exchangeRates[$currency])) {
-                $exchangeRates[$currency] = $this->exchangeRates[$currency];
-            } else {
-                // $exchangeRates[$currency] = 'N/A'; // or handle as per your requirement
-                throw new Exception("Currency not found: $currency");
-            }
-        }
-
-        return $exchangeRates;
+        return $this->outputFormatter->format($results, $outputFormat);
     }
-
-    private function formatCurrency(float $amount, string $currency): string
-    {
-        return number_format($amount, 2, '.', '') . ' ' . $currency;
-    }
+    
 }

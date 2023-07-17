@@ -1,98 +1,119 @@
 <?php
 
 use PHPUnit\Framework\TestCase;
-
-require_once 'src/CurrencyConverter.php';
-require_once 'src/Currency.php';
+use App\CurrencyConverter;
+use App\ExchangeRate;
+use App\ExchangeRateCalculator;
+use App\OutputFormatter;
 
 class CurrencyConverterTest extends TestCase
 {
     private CurrencyConverter $converter;
     private string $outputFormat;
+    private $formatType;
+    private $fromCurrency;
 
     protected function setUp(): void
     {
-        $baseCurrency = 'EUR';
-        $exchangeRates = [
+        $exchangeRate = new ExchangeRate();
+        $exchangeRate->setExchangeRates([
             'EUR' => 1,
             'USD' => 5,
             'CHF' => 0.97,
             'CNY' => 2.3
-        ];
-        $this->outputFormat = 'csv'; // Set to 'csv' for CSV format
-        $this->converter = new CurrencyConverter($baseCurrency, $exchangeRates);
+        ]);
+
+        $exchangeRateCalculator = new ExchangeRateCalculator();
+        $outputFormatter = new OutputFormatter();
+        $this->formatType = 'json';
+        $this->fromCurrency = 'EUR';
+        $this->converter = new CurrencyConverter($exchangeRate, $exchangeRateCalculator, $outputFormatter);
     }
 
+    // a failing test for the convert method
+    public function testConvertShouldReturnWithConvertedValues() 
+    {   
+        $result = $this->converter->convert(10, $this->fromCurrency, ['USD', 'CHF', 'CNY'], $this->formatType);
+        $result = (array)json_decode($result, true);
+       
+        $this->assertIsArray($result);
+        $this->assertCount(3, $result);
+        $this->assertArrayHasKey('USD', $result[0]);
+        $this->assertArrayHasKey('CHF', $result[1]);
+        $this->assertArrayHasKey('CNY', $result[2]);
+    }
+  
     public function testConvertSingleCurrency()
     {
         $amount = 100;
-        $targetCurrency = [new Currency('USD', 'US Dollar')];
+        $targetCurrency = ['USD'];
+    
+        $result = $this->converter->convert($amount, $this->fromCurrency, $targetCurrency, $this->formatType);
         
-        $result = $this->converter->convert($amount, $targetCurrency, $this->outputFormat);
         $expectedResult =[
-            'json' => '[{"currency":"USD","amount":"500.00 USD"}]',
-            'csv' => "USD,500.00 USD"
+            'json' => '[{"USD":500}]',
+            'csv' => "USD,500"
         ];
 
-        $this->assertEquals($expectedResult[$this->outputFormat], $result);
+        $this->assertEquals($expectedResult[$this->formatType], $result);
     }
 
     public function testConvertMultipleCurrencies()
     {
         $amount = 100;
         $targetCurrencies = [
-            new Currency('USD', 'US Dollar'),
-            new Currency('CHF', 'Swiss Franc'),
-            new Currency('CNY', 'Chinese Yuan')
+            'USD',
+            'CHF',
+            'CNY'
         ];
         
-        $result = $this->converter->convert($amount, $targetCurrencies, $this->outputFormat);
+        $result = $this->converter->convert($amount, $this->fromCurrency = 'USD', $targetCurrencies, $this->formatType);
         
         $expectedResult = [
-            'json'  => '[{"currency":"USD","amount":"500.00 USD"},{"currency":"CHF","amount":"97.00 CHF"},{"currency":"CNY","amount":"230.00 CNY"}]',
-            'csv'   => "USD,500.00 USD" . PHP_EOL . "CHF,97.00 CHF" . PHP_EOL . "CNY,230.00 CNY"
+            'json'  => '[{"USD":100},{"CHF":19.4},{"CNY":46}]',
+            'csv'   => "USD,100" . PHP_EOL . "CHF,19.4" . PHP_EOL . "CNY,46"
         ];
 
-        $this->assertEquals($expectedResult[$this->outputFormat], $result);
+        $this->assertEquals($expectedResult[$this->formatType], $result);
     }
 
     public function testConvertWithNegativeValue()
     {
         $amount = -100;
-        $targetCurrency = [new Currency('USD', 'US Dollar')];
+        $targetCurrency = ['USD'];
 
-        $result = $this->converter->convert($amount, $targetCurrency, $this->outputFormat);
+        $result = $this->converter->convert($amount, $this->fromCurrency, $targetCurrency, $this->formatType);
         $expectedResult = [
-            'json'  => '[{"currency":"USD","amount":"-500.00 USD"}]',
-            'csv'   => "USD,-500.00 USD"
+            'json'  => '[{"USD":-500}]',
+            'csv'   => "USD,-500"
         ];
 
-        $this->assertEquals($expectedResult[$this->outputFormat], $result);
+        $this->assertSame($expectedResult[$this->formatType], $result);
     }
 
     public function testConvertWithLongNumbers()
     {
         $amount = 1234567890.12345;
-        $targetCurrency = [new Currency('CHF', 'Swiss Franc')];
+        $targetCurrency = ['CHF'];
 
-        $result = $this->converter->convert($amount, $targetCurrency, $this->outputFormat);
+        $result = $this->converter->convert($amount, $this->fromCurrency, $targetCurrency, $this->formatType='csv');
         $expectedResult = [
-            'json'  => '[{"currency":"CHF","amount":"1197530853.42 CHF"}]',
-            'csv'   => "CHF,1197530853.42 CHF"
+            'json'  => '[{"CHF":1197530853.42}]',
+            'csv'   => "CHF,1197530853.42"
         ];
 
-        $this->assertEquals($expectedResult[$this->outputFormat], $result);
+        $this->assertEquals($expectedResult[$this->formatType='csv'], $result);
     }
 
     public function testConvertWithLargeLoop()
     {
         $amount = 100;
-        $targetCurrency = [new Currency('USD', 'US Dollar')];
+        $targetCurrency = ['USD'];
 
         $startTime = microtime(true);
         
         for ($i = 0; $i < 10000; $i++) {
-            $result = $this->converter->convert($amount, $targetCurrency, $this->outputFormat);
+            $result = $this->converter->convert($amount, $this->fromCurrency, $targetCurrency, $this->formatType);
         }
         $endTime = microtime(true);
         
@@ -100,6 +121,6 @@ class CurrencyConverterTest extends TestCase
         
         $this->assertLessThan(1.0, $executionTime); // Ensure the loop executes within 1 second
     }
-    
+   
     
 }
